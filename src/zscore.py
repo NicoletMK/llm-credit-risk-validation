@@ -1,29 +1,30 @@
-"""Altman Z''-score (Altman 1995 non-manufacturer version).
+"""Altman Z''-score (Altman 1995, non-manufacturer version).
 
-Uses book equity, so every input comes straight from the filing:
   Z'' = 6.56*X1 + 3.26*X2 + 6.72*X3 + 1.05*X4
-  X1 = working capital / total assets
+  X1 = (current assets - current liabilities) / total assets
   X2 = retained earnings / total assets
-  X3 = EBIT / total assets        (operating income as the EBIT proxy)
-  X4 = book equity / total liabilities
+  X3 = operating income / total assets
+  X4 = total equity / total liabilities
+Total liabilities = total assets - total equity.
 Zones: safe > 2.60, grey 1.10-2.60, distress < 1.10.
 """
 
 SAFE, DISTRESS = 2.60, 1.10
+INPUTS = ["total_assets", "current_assets", "current_liabilities",
+          "retained_earnings", "total_equity", "operating_income"]
 
 
-def z_double_prime(v: dict):
-    """v: dict with the ground_truth.FIELDS keys. Returns None if an input is missing."""
-    need = ["total_assets", "current_assets", "current_liabilities",
-            "total_liabilities", "retained_earnings", "stockholders_equity",
-            "operating_income"]
-    if any(v.get(k) is None for k in need) or not v["total_assets"] or not v["total_liabilities"]:
+def z_double_prime(v):
+    if any(v.get(k) is None for k in INPUTS):
         return None
     ta = v["total_assets"]
+    tl = ta - v["total_equity"]
+    if not ta or tl <= 0:
+        return None
     x1 = (v["current_assets"] - v["current_liabilities"]) / ta
     x2 = v["retained_earnings"] / ta
     x3 = v["operating_income"] / ta
-    x4 = v["stockholders_equity"] / v["total_liabilities"]
+    x4 = v["total_equity"] / tl
     return 6.56 * x1 + 3.26 * x2 + 6.72 * x3 + 1.05 * x4
 
 

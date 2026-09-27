@@ -19,8 +19,7 @@ def test_grounding():
 
 def test_zscore():
     v = dict(total_assets=100, current_assets=40, current_liabilities=20,
-             total_liabilities=50, retained_earnings=30, stockholders_equity=50,
-             operating_income=10)
+             retained_earnings=30, total_equity=50, operating_income=10)
     z = z_double_prime(v)
     # 6.56*.2 + 3.26*.3 + 6.72*.1 + 1.05*1 = 1.312+.978+.672+1.05
     assert abs(z - 4.012) < 1e-9

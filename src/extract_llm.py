@@ -22,20 +22,20 @@ PROMPTS = {
     "base": (
         "You are extracting figures from a company's annual report (Form 10-K).\n"
         "From the balance sheet and income statement below, extract: total assets, "
-        "total current assets, total current liabilities, total liabilities, "
-        "retained earnings (accumulated deficit), total stockholders' equity "
-        "attributable to the parent, and operating income (loss).\n\n"
+        "total current assets, total current liabilities, retained earnings "
+        "(accumulated deficit), total equity (including noncontrolling "
+        "interests), and operating income (loss).\n\n"
     ),
     "terse": (
         "Extract these values from the 10-K financial statements below: "
-        "total assets, current assets, current liabilities, total liabilities, "
-        "retained earnings, stockholders' equity, operating income.\n\n"
+        "total assets, current assets, current liabilities, retained earnings, "
+        "total equity, operating income.\n\n"
     ),
     "analyst": (
         "You are a credit analyst computing an Altman Z''-score. Read the "
         "financial statements below and pull the inputs you need: total assets, "
-        "current assets, current liabilities, total liabilities, retained earnings, "
-        "shareholders' equity, and operating income (EBIT proxy).\n\n"
+        "current assets, current liabilities, retained earnings, total equity, "
+        "and operating income (EBIT proxy).\n\n"
     ),
 }
 

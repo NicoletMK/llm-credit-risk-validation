@@ -1,26 +1,25 @@
-"""Ground-truth financial values from the company's own XBRL tags.
-
-XBRL values are the numbers the company itself tagged and filed with the
-SEC, so they serve as the answer key for the LLM's extraction.
-"""
+"""Answer key: the company's own XBRL-tagged values for each field."""
 from datetime import date
 
 from src.edgar import company_facts
 
-# Field -> XBRL tags to try, in order. "instant" = balance-sheet date,
-# "duration" = full-year flow (income statement).
+# Field -> (XBRL tags to try in order, "instant" balance-sheet or "duration" full-year).
+# Only items printed on the face of the statements. Total liabilities is
+# computed in zscore.py as total assets minus total equity.
 FIELDS = {
     "total_assets":        (["Assets"], "instant"),
     "current_assets":      (["AssetsCurrent"], "instant"),
     "current_liabilities": (["LiabilitiesCurrent"], "instant"),
-    "total_liabilities":   (["Liabilities"], "instant"),
     "retained_earnings":   (["RetainedEarningsAccumulatedDeficit"], "instant"),
-    "stockholders_equity": (["StockholdersEquity"], "instant"),
+    # Total equity including noncontrolling interests. Firms with no
+    # noncontrolling interests tag only StockholdersEquity.
+    "total_equity":        (["StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
+                             "StockholdersEquity"], "instant"),
     "operating_income":    (["OperatingIncomeLoss"], "duration"),
 }
 
 
-def _pick(rows: list, accn: str, kind: str):
+def _pick(rows, accn, kind):
     """Current-year value from this filing (filings also repeat prior years)."""
     rows = [r for r in rows if r.get("accn") == accn]
     if kind == "instant":
@@ -34,8 +33,8 @@ def _pick(rows: list, accn: str, kind: str):
     return max(rows, key=lambda r: r["end"])["val"]
 
 
-def xbrl_values(cik: int, accn: str) -> dict:
-    """Return {field: value in USD or None} plus {field_source: tag used}."""
+def xbrl_values(cik, accn):
+    """Return {field: value in USD or None} and {field_source: tag used}."""
     gaap = company_facts(cik)["facts"]["us-gaap"]
     out = {}
     for field, (tags, kind) in FIELDS.items():
@@ -46,17 +45,4 @@ def xbrl_values(cik: int, accn: str) -> dict:
             if val is not None:
                 out[field], out[f"{field}_source"] = val, tag
                 break
-
-    # Many firms never tag total liabilities. Derive it and record that we did,
-    # since a derived answer key is weaker than a tagged one.
-    if out["total_liabilities"] is None:
-        tle = _pick(gaap.get("LiabilitiesAndStockholdersEquity", {})
-                    .get("units", {}).get("USD", []), accn, "instant")
-        eq_incl_nci = _pick(gaap.get(
-            "StockholdersEquityIncludingPortionAttributableToNoncontrollingInterest",
-            {}).get("units", {}).get("USD", []), accn, "instant")
-        eq = eq_incl_nci if eq_incl_nci is not None else out["stockholders_equity"]
-        if tle is not None and eq is not None:
-            out["total_liabilities"] = tle - eq
-            out["total_liabilities_source"] = "derived: LiabilitiesAndStockholdersEquity - equity"
     return out

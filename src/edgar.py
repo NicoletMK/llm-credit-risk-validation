@@ -94,6 +94,12 @@ def filing_text(filing: dict) -> str:
     soup = BeautifulSoup(_get(url).content, "lxml")
     for tag in soup(["script", "style"]):
         tag.decompose()
+    # Inline XBRL filings carry a hidden block of tags, dates and IDs.
+    # It is full of digits and would win the statement search, so drop it.
+    hidden = soup.find_all(style=re.compile(r"display\s*:\s*none", re.I))
+    for tag in hidden + soup.find_all("ix:header"):
+        if not tag.decomposed:
+            tag.decompose()
     text = re.sub(r"[ \t\xa0]+", " ", soup.get_text("\n"))
     text = re.sub(r"\n\s*\n+", "\n", text)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -103,26 +109,37 @@ def filing_text(filing: dict) -> str:
 
 # Headings that open the two statements the Z''-score needs.
 STATEMENT_PATTERNS = [
-    r"consolidated balance sheets?|consolidated statements? of financial position",
-    r"consolidated statements? of (operations|income|earnings)"
+    r"consolidated balance sheets?|consolidated (statements? of )?financial position",
+    r"consolidated statements? of (operations|income|earnings)|consolidated results of operations"
     r"|consolidated (income|earnings) statements?",
+]
+
+# Line items that appear right after each heading when it is the real statement.
+ANCHORS = [
+    ["total current assets", "total assets", "total current liabilities",
+     "retained earnings", "total liabilities", "equity"],
+    ["revenue", "net sales", "cost of", "income before income taxes",
+     "net income", "net earnings", "per share"],
 ]
 
 
 def statements_excerpt(text: str, max_chars: int = config.MAX_CHARS) -> str:
     """Cut the filing down to the balance sheet and income statement.
 
-    Full 10-Ks are too long to send whole. Each heading appears several
-    times (table of contents, notes), so we take the occurrence followed
-    by the most digits, which is almost always the statement itself.
+    Each heading appears several times (table of contents, notes, MD&A).
+    We keep the occurrence whose next few thousand characters contain the
+    most of that statement's line items, with digit count as tiebreak.
     """
     per_statement = max_chars // len(STATEMENT_PATTERNS)
     parts = []
-    for pat in STATEMENT_PATTERNS:
-        best, best_score = None, -1
+    for pat, anchors in zip(STATEMENT_PATTERNS, ANCHORS):
+        pat = pat.replace(" ", r"\s+")
+        best, best_score = None, (-1, -1)
         for m in re.finditer(pat, text, flags=re.I):
             window = text[m.start(): m.start() + per_statement]
-            score = sum(ch.isdigit() for ch in window)
+            head = " ".join(window[:6000].lower().split())
+            score = (sum(a in head for a in anchors),
+                     sum(ch.isdigit() for ch in head))
             if score > best_score:
                 best, best_score = window, score
         if best:
