@@ -1,0 +1,9 @@
+# One ticker per line. Example sample: industrials + retail.
+CAT
+DE
+HON
+MMM
+GE
+WMT
+TGT
+COST
