@@ -1,8 +1,9 @@
-"""Ask an LLM to extract the Z''-score inputs from 10-K statement text."""
+"""Ask an LLM (via OpenRouter) to extract the Z''-score inputs from 10-K text."""
 import json
+import os
 import re
 
-import anthropic
+from openai import OpenAI
 
 import config
 from src.ground_truth import FIELDS
@@ -17,8 +18,6 @@ Each value is an object with:
 Use the most recent fiscal year column. Use null if the item is not in the text.
 Write negative numbers (including those shown in parentheses) with a minus sign."""
 
-# Prompt variants for the sensitivity test. "base" is the main prompt;
-# the others ask for the same thing in different words.
 PROMPTS = {
     "base": (
         "You are extracting figures from a company's annual report (Form 10-K).\n"
@@ -46,7 +45,8 @@ _client = None
 def _client_():
     global _client
     if _client is None:
-        _client = anthropic.Anthropic()  # reads ANTHROPIC_API_KEY
+        _client = OpenAI(base_url="https://openrouter.ai/api/v1",
+                         api_key=os.environ["OPENROUTER_API_KEY"])
     return _client
 
 
@@ -58,15 +58,14 @@ def parse_json(text: str) -> dict:
 
 def extract(statement_text: str, prompt: str = "base",
             temperature: float = 0.0) -> dict:
-    """One extraction call. Returns {field: {...}} plus raw text and errors."""
-    msg = _client_().messages.create(
+    resp = _client_().chat.completions.create(
         model=config.LLM_MODEL,
         max_tokens=1500,
         temperature=temperature,
         messages=[{"role": "user", "content":
                    PROMPTS[prompt] + OUTPUT_SPEC + "\n\n---\n" + statement_text}],
     )
-    raw = "".join(b.text for b in msg.content if b.type == "text")
+    raw = resp.choices[0].message.content or ""
     try:
         return {"parsed": parse_json(raw), "raw": raw, "error": None}
     except (json.JSONDecodeError, ValueError) as e:
