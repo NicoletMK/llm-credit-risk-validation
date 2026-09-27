@@ -21,6 +21,7 @@ RES.mkdir(exist_ok=True)
 
 gt = pd.read_csv(OUT / "ground_truth.csv").set_index("ticker")
 runs = [json.loads(l) for l in (OUT / "extractions.jsonl").read_text().splitlines()]
+runs = [r for r in runs if r["ticker"] in gt.index]  # drop firms no longer in the sample
 texts = {t: numbers_in((OUT / "excerpts" / f"{t}.txt").read_text()) for t in gt.index}
 
 rows, zrows = [], []

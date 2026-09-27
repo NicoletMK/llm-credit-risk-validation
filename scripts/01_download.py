@@ -17,12 +17,15 @@ OUT = Path("data/processed")
 OPINC_WORDS = ["operating income", "operating profit", "income from operations",
                "operating earnings", "operating loss", "loss from operations"]
 
-tickers = [t.strip() for t in Path(config.TICKERS_FILE).read_text().splitlines()
-           if t.strip() and not t.startswith("#")]
+# Lines are "TICKER" or "TICKER CIK". The CIK is the SEC's permanent company
+# ID; using it avoids failures when a ticker changes after sampling.
+lines = [l.split() for l in Path(config.TICKERS_FILE).read_text().splitlines()
+         if l.strip() and not l.startswith("#")]
 rows, skipped = [], []
-for t in tickers:
+for parts in lines:
+    t = parts[0]
     try:
-        cik = edgar.ticker_to_cik(t)
+        cik = int(parts[1]) if len(parts) > 1 else edgar.ticker_to_cik(t)
         filing = edgar.find_10k(cik, config.FISCAL_YEAR)
         excerpt = edgar.statements_excerpt(edgar.filing_text(filing))
         truth = xbrl_values(cik, filing["accn"])
