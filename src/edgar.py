@@ -108,35 +108,52 @@ def filing_text(filing: dict) -> str:
 
 
 # Headings that open the two statements the Z''-score needs.
+# Headings are matched on a copy of the text with all whitespace removed,
+# because filings often split headings across lines or even mid-word
+# ("Consolidated B" / "alance Sheets"). "Consolidated" is optional because
+# some firms (e.g., Microsoft) title their statements "Balance Sheets".
 STATEMENT_PATTERNS = [
-    r"consolidated balance sheets?|consolidated (statements? of )?financial position",
-    r"consolidated statements? of (operations|income|earnings)|consolidated results of operations"
-    r"|consolidated (income|earnings) statements?",
+    r"(consolidated)?(balancesheets?|statements?offinancialposition|financialposition)",
+    r"(consolidated)?(statements?of(operations|income|earnings)"
+    r"|(income|earnings)statements?|resultsofoperations)",
 ]
 
-# Line items that appear right after each heading when it is the real statement.
+# Line items that follow each heading when it is the real statement.
 ANCHORS = [
     ["total current assets", "total assets", "total current liabilities",
-     "retained earnings", "total liabilities", "equity"],
-    ["revenue", "net sales", "cost of", "income before income taxes",
-     "net income", "net earnings", "per share"],
+     "retained earnings", "accumulated deficit", "total liabilities", "equity"],
+    ["revenue", "net sales", "cost of", "gross profit", "operating income",
+     "income from operations", "income before income taxes", "net income",
+     "net earnings", "per share"],
 ]
+
+
+def _squash(text):
+    """Text with whitespace removed, plus each character's original position."""
+    chars, pos = [], []
+    for i, ch in enumerate(text):
+        if not ch.isspace():
+            chars.append(ch.lower())
+            pos.append(i)
+    return "".join(chars), pos
 
 
 def statements_excerpt(text: str, max_chars: int = config.MAX_CHARS) -> str:
     """Cut the filing down to the balance sheet and income statement.
 
-    Each heading appears several times (table of contents, notes, MD&A).
-    We keep the occurrence whose next few thousand characters contain the
-    most of that statement's line items, with digit count as tiebreak.
+    Each heading appears many times (table of contents, auditor's report,
+    MD&A, notes). We keep the occurrence whose next few thousand characters
+    contain the most of that statement's line items, with digit count as
+    tiebreak.
     """
     per_statement = max_chars // len(STATEMENT_PATTERNS)
+    squashed, pos = _squash(text)
     parts = []
     for pat, anchors in zip(STATEMENT_PATTERNS, ANCHORS):
-        pat = pat.replace(" ", r"\s+")
         best, best_score = None, (-1, -1)
-        for m in re.finditer(pat, text, flags=re.I):
-            window = text[m.start(): m.start() + per_statement]
+        for m in re.finditer(pat, squashed):
+            start = pos[m.start()]
+            window = text[start: start + per_statement]
             head = " ".join(window[:6000].lower().split())
             score = (sum(a in head for a in anchors),
                      sum(ch.isdigit() for ch in head))

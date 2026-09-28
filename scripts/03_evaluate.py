@@ -6,6 +6,7 @@ Outputs in data/processed/results/:
   stability.csv, prompt_sensitivity.csv, zones.csv, zone_confusion.csv
 Run from the repo root:  python -m scripts.03_evaluate
 """
+import hashlib
 import json
 from pathlib import Path
 
@@ -21,7 +22,11 @@ RES.mkdir(exist_ok=True)
 
 gt = pd.read_csv(OUT / "ground_truth.csv").set_index("ticker")
 runs = [json.loads(l) for l in (OUT / "extractions.jsonl").read_text().splitlines()]
-runs = [r for r in runs if r["ticker"] in gt.index]  # drop firms no longer in the sample
+# Keep only calls made on each firm's current excerpt (drops firms no longer
+# in the sample and calls made on an older, since-fixed excerpt).
+cur = {t: hashlib.sha1((OUT / "excerpts" / f"{t}.txt").read_text().encode()).hexdigest()[:12]
+       for t in gt.index}
+runs = [r for r in runs if r["ticker"] in cur and r.get("excerpt_sha") == cur[r["ticker"]]]
 texts = {t: numbers_in((OUT / "excerpts" / f"{t}.txt").read_text()) for t in gt.index}
 
 rows, zrows = [], []
