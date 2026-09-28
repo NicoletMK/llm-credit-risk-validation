@@ -15,7 +15,7 @@ N_STABILITY_RUNS = 10       # repeated runs per filing for the stability test
 STABILITY_TEMPERATURE = 1.0 # default sampling, to measure run-to-run variation
 
 # Relative error below which an extracted value counts as correct.
-TOLERANCE = 0.005  # 0.5%
+TOLERANCE = 0.0  # printed values are exact
 
 # Max characters of filing text sent to the LLM.
 MAX_CHARS = 60_000
