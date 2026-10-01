@@ -171,20 +171,30 @@ pd.DataFrame({"feature": XCOLS, "altman_weight": WEIGHTS,
 
 # Figure: bankruptcy rate by zone, and ROC curves on the FY2024 cohort.
 fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(11, 4.2))
-r = rates["rate"].unstack("zone").reindex(columns=["safe", "grey", "distress"]) * 100
-r.T.plot.bar(ax=ax1, rot=0)
-ax1.set_ylabel("Firms filing for bankruptcy next year (%)")
+zones = ["safe", "grey", "distress"]
+width = 0.38
+for k, (year, color) in enumerate([(2023, "tab:blue"), (2024, "tab:orange")]):
+    sub = rates.loc[year].reindex(zones)
+    xs = np.arange(len(zones)) + (k - 0.5) * width
+    ax1.bar(xs, sub["rate"] * 100, width, color=color,
+            label=f"FY{year} values, bankruptcies in {year + 1}")
+    for x, (_, row) in zip(xs, sub.iterrows()):   # label every bar, including zeros
+        ax1.text(x, row["rate"] * 100 + 0.04, f"{int(row.bankruptcies)}/{int(row.firms)}",
+                 ha="center", va="bottom", fontsize=8)
+ax1.set_xticks(range(len(zones)), zones)
+ax1.set_ylabel("Firms filing for bankruptcy (%)")
 ax1.set_xlabel("Z'' zone")
-ax1.legend(title="Cohort")
-for label, s in [("Altman fixed weights", -test.z),
-                 ("Refit weights", logit.predict_proba(clip(test))[:, 1])]:
-    fpr, tpr, _ = roc_curve(test.bankrupt, s)
-    ax2.plot(fpr, tpr, label=label)
+ax1.set_ylim(0, ax1.get_ylim()[1] * 1.12)
+ax1.legend(fontsize=8, loc="upper left")
+s_fit_all = logit.predict_proba(clip(test))[:, 1]
+for label, sc in [("Altman fixed weights", -test.z), ("Refit weights", s_fit_all)]:
+    fpr, tpr, _ = roc_curve(test.bankrupt, sc)
+    ax2.plot(fpr, tpr, label=f"{label} (AUC {roc_auc_score(test.bankrupt, sc):.2f})")
 ax2.plot([0, 1], [0, 1], "k--", lw=0.8)
 ax2.set_xlabel("False positive rate")
 ax2.set_ylabel("True positive rate")
-ax2.set_title("FY2024 cohort (out of time)")
-ax2.legend()
+ax2.set_title(f"FY2024 cohort, out of time ({int(test.bankrupt.sum())} bankruptcies)")
+ax2.legend(loc="lower right", fontsize=8)
 fig.tight_layout()
 fig.savefig(OUT / "backtest.png", dpi=150)
 
