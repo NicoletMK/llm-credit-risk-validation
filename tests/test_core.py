@@ -3,7 +3,8 @@ from src.zscore import z_double_prime, zone
 
 
 def test_classify():
-    assert classify(100.2, 100) == "correct"
+    assert classify(100, 100) == "correct"
+    assert classify(100.2, 100) == "wrong_value"
     assert classify(-100, 100) == "sign_error"
     assert classify(100_000, 100_000_000) == "scale_error"
     assert classify(None, 5) == "missing"

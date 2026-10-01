@@ -1,6 +1,10 @@
-"""Step 3: score every extraction and write the tables for the report.
+"""Step 3: score one method's extractions and write the tables for the report.
 
-Outputs in data/processed/results/:
+  python -m scripts.03_evaluate                 # the model in config.LLM_MODEL
+  python -m scripts.03_evaluate openai/model-x  # another model you ran
+  python -m scripts.03_evaluate rules           # the rule-based challenger
+
+Outputs in data/processed/results/<method>/:
   field_level.csv      one row per (firm, condition, run, field)
   accuracy_by_field.csv, error_types.csv, hallucination.csv,
   stability.csv, prompt_sensitivity.csv, zones.csv, zone_confusion.csv
@@ -16,17 +20,26 @@ from src.ground_truth import FIELDS
 from src.validate import classify, is_grounded, numbers_in, stability
 from src.zscore import z_double_prime, zone
 
+import sys
+
+import config
+
+METHOD = sys.argv[1] if len(sys.argv) > 1 else config.LLM_MODEL
 OUT = Path("data/processed")
-RES = OUT / "results"
-RES.mkdir(exist_ok=True)
+LOG = OUT / ("extractions_rules.jsonl" if METHOD == "rules" else "extractions.jsonl")
+RES = OUT / "results" / METHOD.replace("/", "_")
+RES.mkdir(parents=True, exist_ok=True)
 
 gt = pd.read_csv(OUT / "ground_truth.csv").set_index("ticker")
-runs = [json.loads(l) for l in (OUT / "extractions.jsonl").read_text().splitlines()]
+runs = [json.loads(l) for l in LOG.read_text().splitlines()]
 # Keep only calls made on each firm's current excerpt (drops firms no longer
 # in the sample and calls made on an older, since-fixed excerpt).
 cur = {t: hashlib.sha1((OUT / "excerpts" / f"{t}.txt").read_text().encode()).hexdigest()[:12]
        for t in gt.index}
-runs = [r for r in runs if r["ticker"] in cur and r.get("excerpt_sha") == cur[r["ticker"]]]
+runs = [r for r in runs if r["ticker"] in cur and r.get("excerpt_sha") == cur[r["ticker"]]
+        and r.get("model") == METHOD]
+if not runs:
+    sys.exit(f"No extractions found for {METHOD}. Run step 2 for it first.")
 texts = {t: numbers_in((OUT / "excerpts" / f"{t}.txt").read_text()) for t in gt.index}
 
 rows, zrows = [], []
@@ -75,7 +88,8 @@ has_val = scored[scored.as_printed.notna()]
 stab = fl[fl.condition == "stability"]
 srows = [{"ticker": t, "field": f, **stability(g.pred.fillna(-1).tolist())}
          for (t, f), g in stab.groupby(["ticker", "field"])]
-pd.DataFrame(srows).to_csv(RES / "stability.csv", index=False)
+if srows:  # the rules challenger is deterministic, so it has no stability runs
+    pd.DataFrame(srows).to_csv(RES / "stability.csv", index=False)
 
 # 5. Prompt sensitivity: accuracy by prompt wording.
 prompt_conds = scored[scored.condition != "stability"]
@@ -90,6 +104,7 @@ zb = z[(z.condition == "base") & z.zone_true.notna()]
 pd.crosstab(zb.zone_true, zb.zone_llm.fillna("not computable"),
             rownames=["true zone"], colnames=["LLM zone"]).to_csv(RES / "zone_confusion.csv")
 
+print(f"[{METHOD}]")
 print(f"Field accuracy (main prompt): {base.outcome.eq('correct').mean():.1%}")
 print(f"Hallucination rate (main prompt): "
       f"{(~has_val[has_val.condition == 'base'].grounded).mean():.1%}")
