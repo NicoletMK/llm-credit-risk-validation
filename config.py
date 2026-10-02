@@ -11,7 +11,7 @@ FISCAL_YEAR = 2024
 
 # LLM settings. Set OPENROUTER_API_KEY in your environment.
 LLM_MODEL = "openai/gpt-6-luna"
-N_STABILITY_RUNS = 10       # repeated runs per filing for the stability test
+N_STABILITY_RUNS = 10
 STABILITY_TEMPERATURE = 1.0 # default sampling, to measure run-to-run variation
 
 # Relative error below which an extracted value counts as correct.

@@ -1,0 +1,9 @@
+nohup: ignoring input
+[anthropic/claude-haiku-4.5] 347 calls to make, 2 at a time
+50/347 calls (0 errors)
+100/347 calls (0 errors)
+150/347 calls (0 errors)
+200/347 calls (0 errors)
+250/347 calls (0 errors)
+300/347 calls (0 errors)
+done: 347 saved, 0 errors
