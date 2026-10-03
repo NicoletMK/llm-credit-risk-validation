@@ -55,7 +55,7 @@ for bar, v in zip(b1, res.field_accuracy):
 
 b2 = ax2.bar(res.method, res.wrong_zone, color=colors)
 ax2.set_ylim(0, max(res.wrong_zone.max() * 1.18, 1))
-ax2.set_ylabel("Firms in the wrong Z'' zone (%)")
+ax2.set_ylabel("Firms not in their correct zone (%)")
 ax2.set_title("(b) Effect on the credit risk zone")
 for bar, v, n, f in zip(b2, res.wrong_zone, res.wrong_zone_n, res.firms):
     ax2.text(bar.get_x() + bar.get_width() / 2, v + ax2.get_ylim()[1] * 0.01,

@@ -2,7 +2,7 @@
 
 Can a large language model (LLM) read a company's annual report accurately enough to feed a credit risk score, and does that score predict failure? This project answers both questions for U.S. public companies, using the companies' own SEC filings as the answer key.
 
-**Results.** Two LLMs from different providers extracted the six inputs of the Altman Z''-score from 153 annual reports. With the right text in hand, both matched the filed values almost perfectly (99.9% and 100%) and placed no firm in the wrong risk zone. A rule-based challenger reached 89.7% and misplaced 32 firms. The first run looked worse (8.1% of firms in the wrong zone), but 54 of its 56 missing values were never in the text the model received. The weak point was the step that finds the financial statements, not the model. A backtest on about 2,600 firms per year shows Z'' ranks bankruptcy risk well (AUC 0.82 on the FY2023 cohort), and refitting its weights improved out-of-time ranking on FY2024 (AUC 0.76 to 0.91).
+**Results.** Two LLMs from different providers extracted the six inputs of the Altman Z''-score from 153 annual reports. With the right text in hand, both matched the filed values almost perfectly (99.9% and 100%) and placed no firm in the wrong risk zone. A rule-based challenger reached 89.7% and left 32 firms out of their correct zone. The first run looked worse (12 of 148 firms could not be scored), but 54 of its 56 missing values were never in the text the model received. The weak point was the step that finds the financial statements, not the model. A backtest on about 2,600 firms per year shows Z'' ranks bankruptcy risk well (AUC 0.82 on the FY2023 cohort), and refitting its weights improved out-of-time ranking on FY2024 (AUC 0.76 to 0.91).
 
 Full write-up: [validation report (PDF)](report/validation_report.pdf)
 
@@ -33,7 +33,7 @@ Validation tests:
 
 ### Results
 
-| Method | Field accuracy | Firms in wrong zone | Cost per call |
+| Method | Field accuracy | Firms not in correct zone | Cost per call |
 |---|---|---|---|
 | GPT-6 Luna, run 1 (before fix) | 93.6% | 12 of 148 | about $0.0007 |
 | GPT-6 Luna | 99.9% | 0 of 153 | about $0.0007 |
@@ -44,11 +44,11 @@ Validation tests:
 
 [Rewrite in your own words. Draft points from the results:]
 
-- Retrieval drove almost all first-run failures. Fixing the statement search raised accuracy from 93.6% to 99.9%, removed every wrong zone, and admitted 5 firms the bug had excluded.
+- Retrieval drove almost all first-run failures. Fixing the statement search raised accuracy from 93.6% to 99.9%, scored every firm, and admitted 5 firms the bug had excluded.
 - Neither LLM invented a number. Every value not printed in a filing was a sum of two printed lines. Three firms (INOD, CCC, PLBY) report a redeemable noncontrolling interest outside equity, and the prompt asked for total equity including noncontrolling interests, so the models combined the lines. The error lies in a field definition that does not fit this presentation.
 - Prompt wording mattered for loss-making firms. Without the "(accumulated deficit)" hint, GPT-6 Luna returned no retained earnings value for 7 firms with accumulated deficits, 6 of them in the grey or distress zone. Claude Haiku got all of them.
 - Neither model was better on every test. On the 49 firms with repeated runs for both models, GPT-6 Luna varied on 0 of 294 values and Claude Haiku on 2. Claude Haiku was more accurate on the main prompt and cost about 25 times more per call.
-- The rule-based challenger failed most on operating income and total equity, the items with the most varied labels. It produced 57 wrong values, which flow silently into the score.
+- The rule-based challenger failed most on operating income and total equity, the items with the most varied labels. Of the 32 firms not in their correct zone, 31 were unscored because of missing values and 1 was placed in another zone. Another 21 firms kept their zone with a distorted score, from wrong values that nothing flags.
 - A 0.5% tolerance would have hidden errors. Printed values are exact, so the test is exact.
 
 Recommended controls: run at temperature 0; check that total assets equal total liabilities plus total equity; flag any missing value for review; define each field to match how filings present it, and return the printed line without combining lines.
