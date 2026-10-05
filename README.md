@@ -12,7 +12,7 @@ Full write-up: [validation report (PDF)](report/validation_report.pdf)
 
 ### What was tested
 
-Each method reads the balance sheet and income statement from a company's FY2024 10-K and returns six numbers: total assets, current assets, current liabilities, retained earnings, total equity, and operating income. These feed the Altman Z''-score, which sorts firms into safe, grey, and distress zones.
+Each method reads the balance sheet and income statement from a company's FY2024 10-K and returns six numbers: total assets, current assets, current liabilities, retained earnings, total equity, and operating income. These feed the Altman Z''-score, which sorts firms into safe (above 2.60), grey (1.10–2.60), and distress (below 1.10) zones. These cutoffs are the ones commonly applied to Z'' without its constant term; the report explains which results depend on them.
 
 The answer key is each company's XBRL data, the machine-readable numbers every public company files with the SEC alongside its 10-K. A value counts as correct only if it matches the filed value exactly, since printed numbers are exact.
 
@@ -42,16 +42,14 @@ Validation tests:
 
 ### Findings
 
-[Rewrite in your own words. Draft points from the results:]
-
 - Retrieval drove almost all first-run failures. Fixing the statement search raised accuracy from 93.6% to 99.9%, scored every firm, and admitted 5 firms the bug had excluded.
 - Neither LLM invented a number. Every value not printed in a filing was a sum of two printed lines. Three firms (INOD, CCC, PLBY) report a redeemable noncontrolling interest outside equity, and the prompt asked for total equity including noncontrolling interests, so the models combined the lines. The error lies in a field definition that does not fit this presentation.
-- Prompt wording mattered for loss-making firms. Without the "(accumulated deficit)" hint, GPT-6 Luna returned no retained earnings value for 7 firms with accumulated deficits, 6 of them in the grey or distress zone. Claude Haiku got all of them.
-- Neither model was better on every test. On the 49 firms with repeated runs for both models, GPT-6 Luna varied on 0 of 294 values and Claude Haiku on 2. Claude Haiku was more accurate on the main prompt and cost about 25 times more per call.
-- The rule-based challenger failed most on operating income and total equity, the items with the most varied labels. Of the 32 firms not in their correct zone, 31 were unscored because of missing values and 1 was placed in another zone. Another 21 firms kept their zone with a distorted score, from wrong values that nothing flags.
+- Prompt wording mattered for loss-making firms. Without the "(accumulated deficit)" hint, GPT-6 Luna returned no retained earnings value for 7 of the 75 firms with an accumulated deficit, 6 of them in the grey or distress zone. Claude Haiku returned all 75 correctly.
+- Neither model was better on every test. On the 49 firms with repeated runs for both models, GPT-6 Luna varied on 0 of 294 values and Claude Haiku on 2. Claude Haiku was more accurate on the main prompt and cost about 26 times more per call.
+- The rule-based challenger failed most on operating income and total equity, both items printed under several different labels. Of the 32 firms not in their correct zone, 31 were unscored because of missing values and 1 was placed in another zone. Another 21 firms kept their zone with a distorted score, from wrong values that nothing flags.
 - A 0.5% tolerance would have hidden errors. Printed values are exact, so the test is exact.
 
-Recommended controls: run at temperature 0; check that total assets equal total liabilities plus total equity; flag any missing value for review; define each field to match how filings present it, and return the printed line without combining lines.
+Recommended controls: run at temperature 0; check that each returned value appears as a printed number in the filing; flag any missing value for review; define each field to match how filings present it, and return the printed line without combining lines.
 
 ## Part 2: Does Z'' predict bankruptcy?
 
@@ -66,15 +64,13 @@ Two cohorts were scored on their fiscal-year values and followed for the next ca
 
 Out-of-time test: weights refit by logistic regression on FY2023 reached an AUC of 0.91 (0.81–0.96) on FY2024. A paired bootstrap puts the improvement at 0.15 (0.05–0.28), so it is unlikely to be chance, though the test year has only 14 bankruptcies.
 
-[Rewrite in your own words. Draft points:]
-
 - Bankruptcy rates rise from the safe zone to the distress zone in the FY2023 cohort (0%, 1.4%, 2.3%).
-- The refit model puts most weight on operating income and working capital, and almost none on retained earnings, which Altman weights heavily.
+- The refit model puts most weight on operating income and working capital, and gives retained earnings a small positive coefficient, while Altman weights it heavily. Re-estimating old bankruptcy models on recent data has improved accuracy in earlier studies as well (Grice and Dugan, 2003).
 - WW International shows the retained earnings problem. Its Z'' of 7.0 placed it in the safe zone, driven by retained earnings 3.5 times its assets, while it had negative equity and an operating loss of 43% of assets. It filed for bankruptcy the next year.
 
 ## Limitations
 
-- Z'' misjudges firms whose retained earnings do not reflect current health: young firms with large accumulated deficits look distressed, and some old firms look safe.
+- Retained earnings can misstate a firm's current health: firms with large accumulated deficits score low, and a firm with large retained earnings can score safe while losing money (WW International).
 - The extraction sample covers retail and software firms that print every input; 27 of 180 sampled firms were excluded (reasons in `data/processed/skipped.csv`).
 - The backtest has few bankruptcies per year, uses a one-year horizon, and may miss bankruptcies not reported in an 8-K.
 - Results cover two models at one point in time. A model update needs revalidation.
